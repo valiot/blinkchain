@@ -1,5 +1,4 @@
 defmodule Nerves.Neopixel.Test do
-
   use ExUnit.Case
   doctest Nerves.Neopixel
 
@@ -20,11 +19,13 @@ defmodule Nerves.Neopixel.Test do
 
     channel = 0
     intensity = 127
+
     data = [
       {255, 0, 0},
       {0, 255, 0},
-      {0, 0, 255},
+      {0, 0, 255}
     ]
+
     assert Neopixel.render(channel, {intensity, data}) == :ok
   end
 end
