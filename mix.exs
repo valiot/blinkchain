@@ -8,7 +8,7 @@ defmodule Nerves.Neopixel.Mixfile do
       description: "Drive WS2812B \"NeoPixel\" RGB LED strips from a Raspberry Pi using Elixir.",
       elixir: "~> 1.3",
       make_clean: ["clean"],
-      compilers: [:elixir_make | Mix.compilers()],
+      compilers: compilers(Mix.env()),
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       package: package(),
@@ -23,6 +23,9 @@ defmodule Nerves.Neopixel.Mixfile do
   defp deps do
     [{:elixir_make, "~> 0.4", runtime: false}]
   end
+
+  defp compilers(:test), do: Mix.compilers()
+  defp compilers(_), do: [:elixir_make | Mix.compilers()]
 
   defp package do
     [

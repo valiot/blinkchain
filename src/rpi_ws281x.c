@@ -1,63 +1,55 @@
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <strings.h>
 #include <errno.h>
 #include <err.h>
 
-#include "rpi_ws281x/clk.h"
-#include "rpi_ws281x/gpio.h"
-#include "rpi_ws281x/dma.h"
-#include "rpi_ws281x/pwm.h"
 #include "rpi_ws281x/ws2811.h"
-
-#include "erlcmd.h"
+#include "base64.h"
 #include "utils.h"
 
 #define DMA_CHANNEL 5
 
+typedef struct {
+  size_t width;
+  size_t height;
+  uint16_t *topology;
+} canvas_t;
 
-/*
-  Receive from Erlang a list of tuples
-  {channel, {brightness, data}}
-  Each tuple contains
-  {brightness, led_data}
-*/
-static void led_handle_request(const char *req, void *cookie) {
+void init_canvas(canvas_t *canvas) {
+  size_t width, height;
+  if (scanf("%lu %lu ", &width, &height) != 2) {
+    errx(EXIT_FAILURE, "Argument error in init_canvas command");
+  }
+  size_t topology_size = sizeof(uint16_t) * width * height;
+  size_t buffer_size = (topology_size * 4 / 3) + 4; // 4 bytes for potential padding and string terminator
+  char *base64_buffer = malloc(buffer_size);
+  char format[16], nl;
+  sprintf(format, "%%%lus%%c", buffer_size - 1);
+  if (scanf(format, base64_buffer, &nl) != 2 || nl != '\n') {
+    errx(EXIT_FAILURE, "Unable to read topology from init_canvas command");
+  }
+  printf("Called init_canvas(%lu, %lu, %s)\n", width, height, base64_buffer);
+  canvas->width = width;
+  canvas->height = height;
+  int decoded_size;
+  canvas->topology = (uint16_t *)unbase64(base64_buffer, strlen(base64_buffer), &decoded_size);
+  free(base64_buffer);
+  int i;
+  for(i=0;i<(topology_size/sizeof(uint16_t));i++) {
+    printf("[%i]: %hu\n", i, canvas->topology[i]);
+  }
+  if (topology_size != decoded_size) {
+    errx(EXIT_FAILURE, "Base64-encoded topology size didn't match");
+  }
+}
 
-  ws2811_t *ledstring = (ws2811_t *)cookie;
-
-  int req_index = sizeof(uint16_t);
-  if (ei_decode_version(req, &req_index, NULL) < 0)
-      errx(EXIT_FAILURE, "Message version issue?");
-
-  int arity;
-  if (ei_decode_tuple_header(req, &req_index, &arity) < 0 ||
-          arity != 2)
-    errx(EXIT_FAILURE, "expecting {{channel1}, {channel2}} tuple");
-
-
-  unsigned int ch_num;
-  ei_decode_long(req, &req_index, (long int *) &ch_num);
-
-  ws2811_channel_t *channel = &ledstring->channel[ch_num];
-
-  if (ei_decode_tuple_header(req, &req_index, &arity) < 0 ||
-          arity != 2)
-    errx(EXIT_FAILURE, "expecting {brightness, led_data} tuple");
-
-  unsigned int brightness;
-  if (ei_decode_long(req, &req_index, (long int *) &brightness) < 0 ||
-    brightness > 255)
-    errx(EXIT_FAILURE, "brightness: min=0, max=255");
-
-  channel->brightness = brightness;
-
-  long int led_data_len = (4 * channel->count);
-  ei_decode_binary(req, &req_index, channel->leds, &led_data_len);
-
-  ws2811_return_t rc = ws2811_render(ledstring);
-  if (rc != WS2811_SUCCESS)
-    errx(EXIT_FAILURE, "ws2811_render failed: %d (%s)", rc, ws2811_get_return_t_str(rc));
+void set_pixel(ws2811_channel_t *channels, const canvas_t *canvas) {
+  uint16_t x, y;
+  uint8_t r, g, b, w;
+  if (scanf("%hu %hu %hhu %hhu %hhu %hhu", &x, &y, &r, &g, &b, &w) != 6) {
+    errx(EXIT_FAILURE, "Argument error in set_pixel command");
+  }
+  printf("Called set_pixel(%hu, %hu, %hhu, %hhu, %hhu, %hhu)", x, y, r, g, b, w);
 }
 
 int main(int argc, char *argv[]) {
@@ -96,10 +88,23 @@ int main(int argc, char *argv[]) {
   if (rc != WS2811_SUCCESS)
     errx(EXIT_FAILURE, "ws2811_init failed: %d (%s)", rc, ws2811_get_return_t_str(rc));
 
-  struct erlcmd handler;
-  erlcmd_init(&handler, led_handle_request, &ledstring);
-
+  canvas_t canvas;
+  char buffer[16];
   for (;;) {
-    erlcmd_process(&handler);
+    if (scanf("%15s", buffer) == 0) {
+      if (feof(stdin)) {
+        exit(EXIT_SUCCESS);
+      } else {
+        err(EXIT_FAILURE, "read error");
+      }
+    }
+
+    if (strcasecmp(buffer, "init_canvas") == 0) {
+      init_canvas(&canvas);
+    } else if (strcasecmp(buffer, "set_pixel") == 0) {
+      set_pixel(ledstring.channel, &canvas);
+    } else {
+      errx(EXIT_FAILURE, "Unrecognized command: '%s'", buffer);
+    }
   }
 }
