@@ -16,11 +16,51 @@ typedef struct {
 } canvas_t;
 
 void init_canvas(canvas_t *canvas) {
-  size_t width, height;
-  if (scanf("%lu %lu ", &width, &height) != 2) {
+  uint16_t width, height;
+  char nl;
+  /*
+  int result = scanf("%hu %hu%c", &width, &height, &nl);
+  printf("init_canvas result: %i, nl: '%c'", result, nl);
+  */
+  if (scanf("%hu %hu%c", &width, &height, &nl) != 3 || nl != '\n')
     errx(EXIT_FAILURE, "Argument error in init_canvas command");
+  printf("Called init_canvas(width: %hu, height: %hu)\n", width, height);
+  canvas->width = width;
+  canvas->height = height;
+  if (canvas->topology != NULL)
+    free(canvas->topology);
+  uint32_t topology_size = width * height;
+  canvas->topology = calloc(topology_size, sizeof(uint16_t));
+}
+
+void init_pixels(canvas_t *canvas) {
+  uint16_t x, y, count, offset;
+  uint8_t channel;
+  int8_t dx, dy;
+  char nl;
+  if (scanf("%hhu %hu %hu %hu %hu %hhi %hhi%c", &channel, &offset, &x, &y, &count, &dx, &dy, &nl) != 8 || nl != '\n')
+    errx(EXIT_FAILURE, "Argument error in init_pixels command");
+  printf("Called init_pixels(channel: %hhu, offset: %hu, x: %hu, y: %hu, count: %hu, dx: %hhi, dy: %hhi)\n", channel, offset, x, y, count, dx, dy);
+  uint16_t i;
+  // MSB designates which channel to use
+  offset |= (channel << 15);
+  for (i = 0; i < count; i++) {
+    printf("  Setting topology(%hu, %hu) to %hu\n", x, y, offset);
+    canvas->topology[(canvas->width * y) + x] = offset++;
+    x += dx;
+    y += dy;
   }
-  size_t topology_size = sizeof(uint16_t) * width * height;
+  printf("  Topology:\n  ");
+  for(y = 0; y < canvas->height; y++) {
+    for(x = 0; x < canvas->width; x++) {
+      printf("[%5hu]", canvas->topology[(canvas->width * y) + x]);
+    }
+    printf("\n  ");
+  }
+}
+
+/*
+void parse_base_64() {
   size_t buffer_size = (topology_size * 4 / 3) + 4; // 4 bytes for potential padding and string terminator
   char *base64_buffer = malloc(buffer_size);
   char format[16], nl;
@@ -28,9 +68,6 @@ void init_canvas(canvas_t *canvas) {
   if (scanf(format, base64_buffer, &nl) != 2 || nl != '\n') {
     errx(EXIT_FAILURE, "Unable to read topology from init_canvas command");
   }
-  printf("Called init_canvas(%lu, %lu, %s)\n", width, height, base64_buffer);
-  canvas->width = width;
-  canvas->height = height;
   int decoded_size;
   canvas->topology = (uint16_t *)unbase64(base64_buffer, strlen(base64_buffer), &decoded_size);
   free(base64_buffer);
@@ -42,14 +79,15 @@ void init_canvas(canvas_t *canvas) {
     errx(EXIT_FAILURE, "Base64-encoded topology size didn't match");
   }
 }
+*/
 
 void set_pixel(ws2811_channel_t *channels, const canvas_t *canvas) {
   uint16_t x, y;
   uint8_t r, g, b, w;
-  if (scanf("%hu %hu %hhu %hhu %hhu %hhu", &x, &y, &r, &g, &b, &w) != 6) {
+  char nl;
+  if (scanf("%hu %hu %hhu %hhu %hhu %hhu%c", &x, &y, &r, &g, &b, &w, &nl) != 6 || nl != '\n')
     errx(EXIT_FAILURE, "Argument error in set_pixel command");
-  }
-  printf("Called set_pixel(%hu, %hu, %hhu, %hhu, %hhu, %hhu)", x, y, r, g, b, w);
+  printf("Called set_pixel(%hu, %hu, %hhu, %hhu, %hhu, %hhu)\n", x, y, r, g, b, w);
 }
 
 int main(int argc, char *argv[]) {
@@ -88,19 +126,26 @@ int main(int argc, char *argv[]) {
   if (rc != WS2811_SUCCESS)
     errx(EXIT_FAILURE, "ws2811_init failed: %d (%s)", rc, ws2811_get_return_t_str(rc));
 
-  canvas_t canvas;
+  canvas_t canvas = {
+    .width = 0,
+    .height = 0,
+    .topology = NULL,
+  };
+
   char buffer[16];
   for (;;) {
     if (scanf("%15s", buffer) == 0) {
       if (feof(stdin)) {
         exit(EXIT_SUCCESS);
       } else {
-        err(EXIT_FAILURE, "read error");
+        errx(EXIT_FAILURE, "read error");
       }
     }
 
     if (strcasecmp(buffer, "init_canvas") == 0) {
       init_canvas(&canvas);
+    } else if (strcasecmp(buffer, "init_pixels") == 0) {
+      init_pixels(&canvas);
     } else if (strcasecmp(buffer, "set_pixel") == 0) {
       set_pixel(ledstring.channel, &canvas);
     } else {
