@@ -15,35 +15,18 @@ typedef struct {
   uint16_t *topology;
 } canvas_t;
 
-void init_canvas(canvas_t *canvas) {
-  uint16_t width, height;
-  char nl;
-  /*
-  int result = scanf("%hu %hu%c", &width, &height, &nl);
-  printf("init_canvas result: %i, nl: '%c'", result, nl);
-  */
-  if (scanf("%hu %hu%c", &width, &height, &nl) != 3 || nl != '\n')
-    errx(EXIT_FAILURE, "Argument error in init_canvas command");
-  printf("Called init_canvas(width: %hu, height: %hu)\n", width, height);
+void init_canvas(uint16_t width, uint16_t height, canvas_t *canvas) {
   canvas->width = width;
   canvas->height = height;
   if (canvas->topology != NULL)
     free(canvas->topology);
-  uint32_t topology_size = width * height;
-  canvas->topology = calloc(topology_size, sizeof(uint16_t));
+  canvas->topology = calloc(width * height, sizeof(uint16_t));
 }
 
-void init_pixels(canvas_t *canvas) {
-  uint16_t x, y, count, offset;
-  uint8_t channel;
-  int8_t dx, dy;
-  char nl;
-  if (scanf("%hhu %hu %hu %hu %hu %hhi %hhi%c", &channel, &offset, &x, &y, &count, &dx, &dy, &nl) != 8 || nl != '\n')
-    errx(EXIT_FAILURE, "Argument error in init_pixels command");
-  printf("Called init_pixels(channel: %hhu, offset: %hu, x: %hu, y: %hu, count: %hu, dx: %hhi, dy: %hhi)\n", channel, offset, x, y, count, dx, dy);
-  uint16_t i;
+void init_pixels(uint8_t channel, uint16_t offset, uint16_t x, uint16_t y, uint16_t count, int8_t dx, int8_t dy, canvas_t *canvas) {
   // MSB designates which channel to use
   offset |= (channel << 15);
+  uint16_t i;
   for (i = 0; i < count; i++) {
     printf("  Setting topology(%hu, %hu) to %hu\n", x, y, offset);
     canvas->topology[(canvas->width * y) + x] = offset++;
@@ -143,9 +126,23 @@ int main(int argc, char *argv[]) {
     }
 
     if (strcasecmp(buffer, "init_canvas") == 0) {
-      init_canvas(&canvas);
+      uint16_t width, height;
+      char nl;
+      if (scanf("%hu %hu%c", &width, &height, &nl) != 3 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in init_canvas command");
+      printf("Called init_canvas(width: %hu, height: %hu)\n", width, height);
+      init_canvas(width, height, &canvas);
+
     } else if (strcasecmp(buffer, "init_pixels") == 0) {
-      init_pixels(&canvas);
+      uint16_t x, y, count, offset;
+      uint8_t channel;
+      int8_t dx, dy;
+      char nl;
+      if (scanf("%hhu %hu %hu %hu %hu %hhi %hhi%c", &channel, &offset, &x, &y, &count, &dx, &dy, &nl) != 8 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in init_pixels command");
+      printf("Called init_pixels(channel: %hhu, offset: %hu, x: %hu, y: %hu, count: %hu, dx: %hhi, dy: %hhi)\n", channel, offset, x, y, count, dx, dy);
+      init_pixels(channel, offset, x, y, count, dx, dy, &canvas);
+
     } else if (strcasecmp(buffer, "set_pixel") == 0) {
       uint16_t x, y;
       uint8_t r, g, b, w;
@@ -159,6 +156,7 @@ int main(int argc, char *argv[]) {
       ws2811_led_t color = (w << 24) | (r << 16) | (g << 8) | b;
       printf("  color: 0x%08x\n", color);
       set_pixel(x, y, color, ledstring.channel, &canvas);
+
     } else {
       errx(EXIT_FAILURE, "Unrecognized command: '%s'", buffer);
     }
