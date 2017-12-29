@@ -10,8 +10,8 @@
 #define DMA_CHANNEL 5
 
 typedef struct {
-  size_t width;
-  size_t height;
+  uint16_t width;
+  uint16_t height;
   uint16_t *topology;
 } canvas_t;
 
@@ -59,6 +59,15 @@ void init_pixels(canvas_t *canvas) {
   }
 }
 
+void set_pixel(uint16_t x, uint16_t y, ws2811_led_t color, ws2811_channel_t *channels, const canvas_t *canvas) {
+  uint16_t offset = canvas->topology[(canvas->width * y) + x];
+  // MSB designates which channel to use
+  uint8_t channel = offset >> 15;
+  // Clear the MSB so we can use pixel as the offset within the channel
+  offset &= ~(1 << 15);
+  channels[channel].leds[offset] = color;
+}
+
 /*
 void parse_base_64() {
   size_t buffer_size = (topology_size * 4 / 3) + 4; // 4 bytes for potential padding and string terminator
@@ -80,15 +89,6 @@ void parse_base_64() {
   }
 }
 */
-
-void set_pixel(ws2811_channel_t *channels, const canvas_t *canvas) {
-  uint16_t x, y;
-  uint8_t r, g, b, w;
-  char nl;
-  if (scanf("%hu %hu %hhu %hhu %hhu %hhu%c", &x, &y, &r, &g, &b, &w, &nl) != 6 || nl != '\n')
-    errx(EXIT_FAILURE, "Argument error in set_pixel command");
-  printf("Called set_pixel(%hu, %hu, %hhu, %hhu, %hhu, %hhu)\n", x, y, r, g, b, w);
-}
 
 int main(int argc, char *argv[]) {
   if (argc != 5)
@@ -147,7 +147,18 @@ int main(int argc, char *argv[]) {
     } else if (strcasecmp(buffer, "init_pixels") == 0) {
       init_pixels(&canvas);
     } else if (strcasecmp(buffer, "set_pixel") == 0) {
-      set_pixel(ledstring.channel, &canvas);
+      uint16_t x, y;
+      uint8_t r, g, b, w;
+      char nl;
+      if (scanf("%hu %hu %hhu %hhu %hhu %hhu%c", &x, &y, &r, &g, &b, &w, &nl) != 7 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in set_pixel command");
+      printf("Called set_pixel(x: %hu, y: %hu, r: %hhu, g: %hhu, b: %hhu, w: %hhu)\n", x, y, r, g, b, w);
+      if (x >= canvas.width || y >= canvas.height)
+        errx(EXIT_FAILURE, "Point (%hu, %hu) is outside canvas dimensions %hu x %hu\n", x, y, canvas.width, canvas.height);
+      // ws2811_led_t is uint32_t: 0xWWRRGGBB
+      ws2811_led_t color = (w << 24) | (r << 16) | (g << 8) | b;
+      printf("  color: 0x%08x\n", color);
+      set_pixel(x, y, color, ledstring.channel, &canvas);
     } else {
       errx(EXIT_FAILURE, "Unrecognized command: '%s'", buffer);
     }
