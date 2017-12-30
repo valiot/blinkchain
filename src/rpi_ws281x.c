@@ -176,6 +176,11 @@ int main(int argc, char *argv[]) {
       blit(x, y, width, height, data, ledstring.channel, &canvas);
       free(data);
 
+    } else if (strcasecmp(buffer, "render") == 0) {
+      ws2811_return_t result = ws2811_render(&ledstring);
+      if (rc != WS2811_SUCCESS)
+        errx(EXIT_FAILURE, "ws2811_render failed: %d (%s)", result, ws2811_get_return_t_str(result));
+
     } else {
       errx(EXIT_FAILURE, "Unrecognized command: '%s'", buffer);
     }
