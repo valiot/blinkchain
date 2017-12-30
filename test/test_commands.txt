@@ -1,0 +1,6 @@
+init_canvas 2 2
+init_pixels 1 0 1 1 2 -1 0
+init_pixels 0 0 0 0 2 1 0
+set_pixel 1 1 0 10 255 127
+blit 0 0 2 2 24 /wAAAAD/AAAAAP8AAAAA/w==
+
