@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <errno.h>
@@ -15,17 +16,32 @@ typedef struct {
   uint16_t *topology;
 } canvas_t;
 
+int32_t min(int32_t a, int32_t b) {
+  return (a < b) ? a : b;
+}
+
+int32_t max(int32_t a, int32_t b) {
+  return (a > b) ? a : b;
+}
+
 void init_canvas(uint16_t width, uint16_t height, canvas_t *canvas) {
   printf("Called init_canvas(width: %hu, height: %hu)\n", width, height);
   canvas->width = width;
   canvas->height = height;
   if (canvas->topology != NULL)
     free(canvas->topology);
-  canvas->topology = calloc(width * height, sizeof(uint16_t));
+  canvas->topology = malloc(width * height * sizeof(uint16_t));
+  // Initialize all offsets to USHRT_MAX
+  memset(canvas->topology, 0xFF, width * height * sizeof(uint16_t));
 }
 
 void init_pixels(uint8_t channel, uint16_t offset, uint16_t x, uint16_t y, uint16_t count, int8_t dx, int8_t dy, canvas_t *canvas) {
   printf("Called init_pixels(channel: %hhu, offset: %hu, x: %hu, y: %hu, count: %hu, dx: %hhi, dy: %hhi)\n", channel, offset, x, y, count, dx, dy);
+  if (offset + count - 1 >= 32767) // 0xEFFF
+    errx(EXIT_FAILURE, "The offset of the last pixel in each channel must be less than 32767.");
+  if (min(x, x + (count - 1) * dx) < 0 || max(x, x + (count - 1) * dx) >= canvas->width ||
+      min(y, y + (count - 1) * dy) < 0 || max(y, y + (count - 1) * dy) >= canvas->height)
+    errx(EXIT_FAILURE, "The pixels must all be within the bounds of the canvas in init_pixel command");
   // MSB designates which channel to use
   offset |= (channel << 15);
   uint16_t i;
@@ -35,32 +51,42 @@ void init_pixels(uint8_t channel, uint16_t offset, uint16_t x, uint16_t y, uint1
     x += dx;
     y += dy;
   }
-  printf("  Topology:\n");
-  for(y = 0; y < canvas->height; y++) {
-    printf("  ");
-    for(x = 0; x < canvas->width; x++) {
-      printf("[%5hu]", canvas->topology[(canvas->width * y) + x]);
-    }
-    printf("\n");
-  }
 }
 
 void set_pixel(uint16_t x, uint16_t y, ws2811_led_t color, ws2811_channel_t *channels, const canvas_t *canvas) {
   printf("Called set_pixel(x: %hu, y: %hu, color: 0x%08x)\n", x, y, color);
+  if (x >= canvas->width || y >= canvas->height)
+    errx(EXIT_FAILURE, "Cannot draw outside canvas dimensions");
   uint16_t offset = canvas->topology[(canvas->width * y) + x];
-  // MSB designates which channel to use
-  uint8_t channel = offset >> 15;
-  // Clear the MSB so we can use pixel as the offset within the channel
-  offset &= ~(1 << 15);
-  channels[channel].leds[offset] = color;
+  // Ignore canvas locations that weren't initialized with pixels
+  if (offset != USHRT_MAX) {
+    // MSB designates which channel to use
+    uint8_t channel = offset >> 15;
+    // Clear the MSB so we can use pixel as the offset within the channel
+    offset &= ~(1 << 15);
+    channels[channel].leds[offset] = color;
+  }
+}
+
+void fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, ws2811_led_t color, ws2811_channel_t *channels, const canvas_t *canvas) {
+  printf("Called fill(x: %hu, y: %hu, width: %hu, height: %hu, color: 0x%08x)\n", x, y, width, height, color);
+  if (x >= canvas->width || y >= canvas->height ||
+      x + width >= canvas->width || y + height >= canvas->height)
+    errx(EXIT_FAILURE, "Cannot draw outside canvas dimensions");
+  uint16_t row, col;
+  for(row = 0; row < height; row++) {
+    for(col = 0; col < width; col++) {
+      set_pixel(x + col, y + row, color, channels, canvas);
+    }
+  }
 }
 
 void blit(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *data, ws2811_channel_t *channels, const canvas_t *canvas) {
   printf("Called blit(x: %hu, y: %hu, width: %hu, height: %hu, data: <binary>)\n", x, y, width, height);
   uint16_t row, col;
   ws2811_led_t color;
-  for(row = 0; row < height; row++, y++) {
-    for(col = 0; col < width; col++, x++) {
+  for(row = 0; row < height; row++) {
+    for(col = 0; col < width; col++) {
       // ws2811_led_t is uint32_t: 0xWWRRGGBB
       // so data should look like [0xWW, 0xRR, 0xGG, 0xBB]
       color = *data++;
@@ -70,7 +96,9 @@ void blit(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t
       color |= *data++;
       color <<= 8;
       color |= *data++;
-      set_pixel(x, y, color, channels, canvas);
+      // Ignore totally black pixels in the source image to allow simple sprite masking.
+      if (color != 0x00000000)
+        set_pixel(x + col, y + row, color, channels, canvas);
     }
   }
 }
@@ -151,11 +179,19 @@ int main(int argc, char *argv[]) {
       char nl;
       if (scanf("%hu %hu %hhu %hhu %hhu %hhu%c", &x, &y, &r, &g, &b, &w, &nl) != 7 || nl != '\n')
         errx(EXIT_FAILURE, "Argument error in set_pixel command");
-      if (x >= canvas.width || y >= canvas.height)
-        errx(EXIT_FAILURE, "Point (%hu, %hu) is outside canvas dimensions %hu x %hu\n", x, y, canvas.width, canvas.height);
       // ws2811_led_t is uint32_t: 0xWWRRGGBB
       ws2811_led_t color = (w << 24) | (r << 16) | (g << 8) | b;
       set_pixel(x, y, color, ledstring.channel, &canvas);
+
+    } else if (strcasecmp(buffer, "fill") == 0) {
+      uint16_t x, y, width, height;
+      uint8_t r, g, b, w;
+      char nl;
+      if (scanf("%hu %hu %hu %hu %hhu %hhu %hhu %hhu%c", &x, &y, &width, &height, &r, &g, &b, &w, &nl) != 9 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in set_pixel command");
+      // ws2811_led_t is uint32_t: 0xWWRRGGBB
+      ws2811_led_t color = (w << 24) | (r << 16) | (g << 8) | b;
+      fill(x, y, width, height, color, ledstring.channel, &canvas);
 
     } else if (strcasecmp(buffer, "blit") == 0) {
       uint16_t x, y, width, height;
@@ -180,6 +216,21 @@ int main(int argc, char *argv[]) {
       ws2811_return_t result = ws2811_render(&ledstring);
       if (rc != WS2811_SUCCESS)
         errx(EXIT_FAILURE, "ws2811_render failed: %d (%s)", result, ws2811_get_return_t_str(result));
+
+    } else if (strcasecmp(buffer, "print_topology") == 0) {
+      printf("Topology:\n");
+      uint16_t x, y, offset;
+      for(y = 0; y < canvas.height; y++) {
+        printf("  ");
+        for(x = 0; x < canvas.width; x++) {
+          offset = canvas.topology[(canvas.width * y) + x];
+          if (offset == USHRT_MAX)
+            printf("[  -  ]");
+          else
+            printf("[%5hu]", offset);
+        }
+        printf("\n");
+      }
 
     } else {
       errx(EXIT_FAILURE, "Unrecognized command: '%s'", buffer);
