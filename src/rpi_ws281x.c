@@ -25,7 +25,7 @@ int32_t max(int32_t a, int32_t b) {
 }
 
 void init_canvas(uint16_t width, uint16_t height, canvas_t *canvas) {
-  printf("Called init_canvas(width: %hu, height: %hu)\n", width, height);
+  debug("Called init_canvas(width: %hu, height: %hu)", width, height);
   canvas->width = width;
   canvas->height = height;
   if (canvas->topology != NULL)
@@ -36,7 +36,7 @@ void init_canvas(uint16_t width, uint16_t height, canvas_t *canvas) {
 }
 
 void init_pixels(uint8_t channel, uint16_t offset, uint16_t x, uint16_t y, uint16_t count, int8_t dx, int8_t dy, canvas_t *canvas) {
-  printf("Called init_pixels(channel: %hhu, offset: %hu, x: %hu, y: %hu, count: %hu, dx: %hhi, dy: %hhi)\n", channel, offset, x, y, count, dx, dy);
+  debug("Called init_pixels(channel: %hhu, offset: %hu, x: %hu, y: %hu, count: %hu, dx: %hhi, dy: %hhi)", channel, offset, x, y, count, dx, dy);
   if (offset + count - 1 >= 32767) // 0xEFFF
     errx(EXIT_FAILURE, "The offset of the last pixel in each channel must be less than 32767.");
   if (min(x, x + (count - 1) * dx) < 0 || max(x, x + (count - 1) * dx) >= canvas->width ||
@@ -46,7 +46,7 @@ void init_pixels(uint8_t channel, uint16_t offset, uint16_t x, uint16_t y, uint1
   offset |= (channel << 15);
   uint16_t i;
   for (i = 0; i < count; i++) {
-    printf("  Setting topology(%hu, %hu) to %hu\n", x, y, offset);
+    debug("  Setting topology(%hu, %hu) to %hu", x, y, offset);
     canvas->topology[(canvas->width * y) + x] = offset++;
     x += dx;
     y += dy;
@@ -54,7 +54,7 @@ void init_pixels(uint8_t channel, uint16_t offset, uint16_t x, uint16_t y, uint1
 }
 
 void set_pixel(uint16_t x, uint16_t y, ws2811_led_t color, ws2811_channel_t *channels, const canvas_t *canvas) {
-  printf("Called set_pixel(x: %hu, y: %hu, color: 0x%08x)\n", x, y, color);
+  debug("Called set_pixel(x: %hu, y: %hu, color: 0x%08x)", x, y, color);
   if (x >= canvas->width || y >= canvas->height)
     errx(EXIT_FAILURE, "Cannot draw outside canvas dimensions");
   uint16_t offset = canvas->topology[(canvas->width * y) + x];
@@ -69,7 +69,7 @@ void set_pixel(uint16_t x, uint16_t y, ws2811_led_t color, ws2811_channel_t *cha
 }
 
 void fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, ws2811_led_t color, ws2811_channel_t *channels, const canvas_t *canvas) {
-  printf("Called fill(x: %hu, y: %hu, width: %hu, height: %hu, color: 0x%08x)\n", x, y, width, height, color);
+  debug("Called fill(x: %hu, y: %hu, width: %hu, height: %hu, color: 0x%08x)", x, y, width, height, color);
   if (x >= canvas->width || y >= canvas->height ||
       x + width >= canvas->width || y + height >= canvas->height)
     errx(EXIT_FAILURE, "Cannot draw outside canvas dimensions");
@@ -82,7 +82,7 @@ void fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, ws2811_led_t 
 }
 
 void blit(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *data, ws2811_channel_t *channels, const canvas_t *canvas) {
-  printf("Called blit(x: %hu, y: %hu, width: %hu, height: %hu, data: <binary>)\n", x, y, width, height);
+  debug("Called blit(x: %hu, y: %hu, width: %hu, height: %hu, data: <binary>)", x, y, width, height);
   uint16_t row, col;
   ws2811_led_t color;
   for(row = 0; row < height; row++) {
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
     buffer[0] = '\0';
     if (scanf("%15s", buffer) == 0 || strlen(buffer) == 0) {
       if (feof(stdin)) {
-        printf("EOF\n");
+        debug("EOF");
         exit(EXIT_SUCCESS);
       } else {
         errx(EXIT_FAILURE, "read error");
@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
       uint8_t *data = unbase64(base64_buffer, strlen(base64_buffer), &decoded_size);
       if (decoded_size != width * height * 4) // Each pixel should have 4 8-bit color channels
         errx(EXIT_FAILURE, "Size of binary data didn't match the width and height in blit command");
-      printf("Base64-encoded blit data: %s\n", base64_buffer);
+      debug("Base64-encoded blit data: %s", base64_buffer);
       free(base64_buffer);
       blit(x, y, width, height, data, ledstring.channel, &canvas);
       free(data);
