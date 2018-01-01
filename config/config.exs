@@ -1,4 +1,19 @@
 use Mix.Config
 
-config :logger,
-  compile_time_purge_level: :info
+config :logger, level: :debug
+
+config :nerves_neopixel,
+  canvas: {8, 4},
+  channels: [:channel1]
+
+config :nerves_neopixel, :channel1,
+  pin: 18,
+  arrangement: [
+    %{
+      type: :matrix,
+      origin: {0, 0},
+      count: {8, 4},
+      direction: {:right, :down},
+      progressive: false
+    }
+  ]

@@ -9,7 +9,7 @@
 #include "base64.h"
 #include "utils.h"
 
-#define DMA_CHANNEL 5
+#define DMA_CHANNEL 10
 
 typedef struct {
   uint16_t width;
@@ -146,14 +146,18 @@ void blit(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 5)
-    errx(EXIT_FAILURE, "Usage: %s <Channel 1 GPIO Pin> <Channel 1 LED Count> <Channel 2 GPIO Pin> <Channel 2 LED Count>", argv[0]);
+  if (argc != 5 && argc != 3)
+    errx(EXIT_FAILURE, "Usage: %s <Channel 1 Pin> <Channel 1 Count> [<Channel 2 Pin> <Channel 2 Count>]", argv[0]);
 
   uint8_t gpio_pin1 = atoi(argv[1]);
   uint32_t led_count1 = strtol(argv[2], NULL, 10);
 
-  uint8_t gpio_pin2 = atoi(argv[3]);
-  uint32_t led_count2 = strtol(argv[4], NULL, 10);
+  uint8_t gpio_pin2 = 0;
+  uint32_t led_count2 = 0;
+  if (argc == 5) {
+    gpio_pin2 = atoi(argv[3]);
+    led_count2 = strtol(argv[4], NULL, 10);
+  }
 
   /*
   Setup the channels. Raspberry Pi supports 2 PWM channels.

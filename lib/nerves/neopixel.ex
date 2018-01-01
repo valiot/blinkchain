@@ -1,15 +1,9 @@
 defmodule Nerves.Neopixel do
-  use Application
-
   require Logger
 
   @moduledoc """
   # `Nerves.Neopixel`
   """
-
-  def start(_type, _args) do
-    Nerves.Neopixel.Supervisor.start()
-  end
 
   def render({_, _} = data) do
     render(0, data)
@@ -38,9 +32,5 @@ defmodule Nerves.Neopixel do
     Enum.reduce(data, <<>>, fn {r, g, b}, acc ->
       acc <> <<b::size(8), r::size(8), g::size(8), 0x00::size(8)>>
     end)
-  end
-
-  defp rpi_ws281x_path do
-    Path.join(:code.priv_dir(:nerves_neopixel), "rpi_ws281x")
   end
 end

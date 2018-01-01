@@ -16,8 +16,9 @@ defmodule Nerves.Neopixel.Mixfile do
     ]
   end
 
-  def application do
-    [applications: [:logger]]
+  def application() do
+    [mod: {Nerves.Neopixel.Application, []},
+     extra_applications: [:logger]]
   end
 
   defp deps do
