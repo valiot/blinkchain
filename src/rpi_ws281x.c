@@ -1,5 +1,6 @@
 #include <limits.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <strings.h>
 #include <errno.h>
 #include <err.h>
@@ -68,6 +69,26 @@ void set_pixel(uint16_t x, uint16_t y, ws2811_led_t color, ws2811_channel_t *cha
   }
 }
 
+ws2811_led_t get_pixel(uint16_t x, uint16_t y, ws2811_channel_t *channels, const canvas_t *canvas) {
+  debug("Called get_pixel(x: %hu, y: %hu)", x, y);
+  if (x >= canvas->width || y >= canvas->height)
+    errx(EXIT_FAILURE, "Cannot read from outside canvas dimensions");
+  uint16_t offset = canvas->topology[(canvas->width * y) + x];
+  // Ignore canvas locations that weren't initialized with pixels
+  if (offset == USHRT_MAX) {
+    // TODO: We should probably store the whole canvas instead of just the
+    // actually-mapped pixels in the topology so we don't have to do this...
+    // and maybe use OpenGL ES or something to do the low-level drawing.
+    return 0x00000000;
+  } else {
+    // MSB designates which channel to use
+    uint8_t channel = offset >> 15;
+    // Clear the MSB so we can use pixel as the offset within the channel
+    offset &= ~(1 << 15);
+   return  channels[channel].leds[offset];
+  }
+}
+
 void fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, ws2811_led_t color, ws2811_channel_t *channels, const canvas_t *canvas) {
   debug("Called fill(x: %hu, y: %hu, width: %hu, height: %hu, color: 0x%08x)", x, y, width, height, color);
   if (x >= canvas->width || y >= canvas->height ||
@@ -77,6 +98,27 @@ void fill(uint16_t x, uint16_t y, uint16_t width, uint16_t height, ws2811_led_t 
   for(row = 0; row < height; row++) {
     for(col = 0; col < width; col++) {
       set_pixel(x + col, y + row, color, channels, canvas);
+    }
+  }
+}
+
+void copy(uint16_t xs, uint16_t ys, uint16_t xd, uint16_t yd, uint16_t width, uint16_t height, bool copy_null, ws2811_channel_t *channels, const canvas_t *canvas) {
+  debug("Called copy%s(xs: %hu, ys: %hu, xd: %hu, yd: %hu, width: %hu, height: %hu)", copy_null ? "" : "_blit", xs, ys, xd, yd, width, height);
+  // Note: We skip bounds-checking here because it's already done in each call to get_pixel and set_pixel.
+  uint16_t row, col;
+  ws2811_led_t *buffer = calloc(width * height, sizeof(ws2811_led_t));;
+  for(row = 0; row < height; row++) {
+    for(col = 0; col < width; col++) {
+      buffer[row * width + col] = get_pixel(xs + col, ys + row, channels, canvas);
+    }
+  }
+  // We have to copy to a temporary buffer and then back so that the copy happens "all at once."
+  ws2811_led_t color;
+  for(row = 0; row < height; row++) {
+    for(col = 0; col < width; col++) {
+      color = buffer[row * width + col];
+      if (color != 0x00000000 || copy_null)
+        set_pixel(xd + col, yd + row, color, channels, canvas);
     }
   }
 }
@@ -183,6 +225,13 @@ int main(int argc, char *argv[]) {
       ws2811_led_t color = (w << 24) | (r << 16) | (g << 8) | b;
       set_pixel(x, y, color, ledstring.channel, &canvas);
 
+    } else if (strcasecmp(buffer, "get_pixel") == 0) {
+      uint16_t x, y;
+      char nl;
+      if (scanf("%hu %hu%c", &x, &y, &nl) != 3 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in get_pixel command");
+      get_pixel(y, x, ledstring.channel, &canvas);
+
     } else if (strcasecmp(buffer, "fill") == 0) {
       uint16_t x, y, width, height;
       uint8_t r, g, b, w;
@@ -192,6 +241,13 @@ int main(int argc, char *argv[]) {
       // ws2811_led_t is uint32_t: 0xWWRRGGBB
       ws2811_led_t color = (w << 24) | (r << 16) | (g << 8) | b;
       fill(x, y, width, height, color, ledstring.channel, &canvas);
+
+    } else if (strcasecmp(buffer, "copy") == 0) {
+      uint16_t xs, ys, xd, yd, w, h;
+      char nl;
+      if (scanf("%hu %hu %hu %hu %hu %hu%c", &xs, &ys, &xd, &yd, &w, &h, &nl) != 7 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in copy command");
+      copy(xs, ys, xd, yd, w, h, true, ledstring.channel, &canvas);
 
     } else if (strcasecmp(buffer, "blit") == 0) {
       uint16_t x, y, width, height;
@@ -211,6 +267,13 @@ int main(int argc, char *argv[]) {
       free(base64_buffer);
       blit(x, y, width, height, data, ledstring.channel, &canvas);
       free(data);
+
+    } else if (strcasecmp(buffer, "copy_blit") == 0) {
+      uint16_t xs, ys, xd, yd, w, h;
+      char nl;
+      if (scanf("%hu %hu %hu %hu %hu %hu%c", &xs, &ys, &xd, &yd, &w, &h, &nl) != 7 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in copy_blit command");
+      copy(xs, ys, xd, yd, w, h, false, ledstring.channel, &canvas);
 
     } else if (strcasecmp(buffer, "render") == 0) {
       ws2811_return_t result = ws2811_render(&ledstring);

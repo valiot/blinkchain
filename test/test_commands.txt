@@ -10,4 +10,8 @@ set_pixel 1 1 0 10 255 127
 render
 blit 0 1 2 2 24 /wAAAAD/AAAAAP8AAAAA/w==
 render
+copy_blit 0 0 1 1 2 2
+render
+copy 0 0 1 1 2 2
+render
 
