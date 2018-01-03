@@ -42,14 +42,14 @@ defmodule Nerves.Neopixel.HAL do
 
     config.channels
     |> Enum.with_index()
-    |> Enum.flat_map(fn {chan, num} -> init_pixels(num, chan) end)
+    |> Enum.flat_map(fn {channel, channel_number} -> init_channel(channel_number, channel) end)
     |> Enum.each(& send_to_port(&1, port))
 
     {:noreply, state}
   end
 
   def handle_info({_port, {:data, {_, message}}}, state) do
-    Logger.error("Output from rpi_ws281x: #{message}")
+    Logger.info("Output from rpi_ws281x: #{message}")
     {:noreply, state}
   end
 
@@ -62,18 +62,25 @@ defmodule Nerves.Neopixel.HAL do
     "init_canvas #{width} #{height}\n"
   end
 
-  defp init_pixels(channel_num, %Channel{arrangement: arrangement}) do
+  defp init_channel(channel_num, %Channel{arrangement: arrangement}) do
     arrangement
-    |> Enum.map(& init_pixels(channel_num, &1))
+    |> with_pixel_offset()
+    |> Enum.map(fn {offset, strip} -> init_pixels(channel_num, offset, strip) end)
   end
-  defp init_pixels(channel_num, %Strip{origin: {x, y}, count: count, direction: direction}) do
+
+  defp init_pixels(channel_num, offset, %Strip{origin: {x, y}, count: count, direction: direction}) do
     {dx, dy} = case direction do
       :right -> {1, 0}
       :left -> {-1, 0}
       :down -> {0, 1}
       :up -> {0, -1}
     end
-    "init_pixels #{channel_num} #{x} #{y} #{count} #{dx} #{dy}\n"
+    "init_pixels #{channel_num} #{offset} #{x} #{y} #{count} #{dx} #{dy}\n"
+  end
+
+  defp with_pixel_offset([], _offset), do: []
+  defp with_pixel_offset([strip | rest], offset \\ 0) do
+    [{offset, strip} | with_pixel_offset(rest, offset + strip.count)]
   end
 
   defp rpi_ws281x_path do
@@ -81,6 +88,7 @@ defmodule Nerves.Neopixel.HAL do
   end
 
   defp send_to_port(command, port) do
+    Logger.debug("Sending to Port: #{inspect command}")
     Port.command(port, command)
   end
 end

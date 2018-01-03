@@ -8,7 +8,6 @@ defmodule Nerves.Neopixel.Test do
     Canvas,
     Channel,
     Config,
-    Matrix,
     Strip
   }
 
