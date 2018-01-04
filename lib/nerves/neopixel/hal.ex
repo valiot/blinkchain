@@ -44,6 +44,16 @@ defmodule Nerves.Neopixel.HAL do
     {:reply, :ok, Map.put(state, :subscriber, from)}
   end
 
+  def handle_cast({:set_pixel, {x, y}, {r, g, b, w}}, %{port: port} = state) do
+    send_to_port("set_pixel #{x} #{y} #{r} #{g} #{b} #{w}\n", port)
+    {:noreply, state}
+  end
+
+  def handle_cast(:render, %{port: port} = state) do
+    send_to_port("render\n", port)
+    {:noreply, state}
+  end
+
   def handle_info(:init_canvas, %{config: config, port: port} = state) do
     Logger.debug("Initializing canvas")
     config.canvas
@@ -59,8 +69,8 @@ defmodule Nerves.Neopixel.HAL do
   end
 
   def handle_info({_port, {:data, {_, message}}}, state) do
-    Logger.debug("Reply from rpi_ws281x: <- #{inspect message}")
-    notify(state[:subscriber], message)
+    Logger.debug(fn -> "Reply from rpi_ws281x: <- #{inspect to_string(message)}" end)
+    notify(state[:subscriber], to_string(message))
     {:noreply, state}
   end
 
