@@ -11,7 +11,8 @@ defmodule Nerves.Neopixel.HAL do
   require Logger
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, Config.load(), opts)
+    config = load_config(opts)
+    GenServer.start_link(__MODULE__, config, name: __MODULE__)
   end
 
   def init(config) do
@@ -34,6 +35,15 @@ defmodule Nerves.Neopixel.HAL do
     {:ok, %{ config: config, port: port }}
   end
 
+  # This is intended to be used for testing.
+  # It causes Nerves.Neopixel.HAL to send feedback to the registered process
+  # whenever it gets output from the rpi_ws281x Port.
+  # It's a call instead of a cast so that we can synchronously make sure
+  # it got registered before we move on to the next step.
+  def handle_call(:subscribe, {from, _ref}, state) do
+    {:reply, :ok, Map.put(state, :subscriber, from)}
+  end
+
   def handle_info(:init_canvas, %{config: config, port: port} = state) do
     Logger.debug("Initializing canvas")
     config.canvas
@@ -49,13 +59,25 @@ defmodule Nerves.Neopixel.HAL do
   end
 
   def handle_info({_port, {:data, {_, message}}}, state) do
-    Logger.info("Output from rpi_ws281x: #{message}")
+    Logger.debug("Reply from rpi_ws281x: <- #{inspect message}")
+    notify(state[:subscriber], message)
     {:noreply, state}
+  end
+
+  def handle_info({_port, {:exit_status, exit_status}}, state) do
+    {:stop, "rpi_ws281x OS process died with status: #{inspect exit_status}", state}
   end
 
   def handle_info(message, state) do
     Logger.error("Unhandled message: #{inspect message}")
     {:noreply, state}
+  end
+
+  defp load_config(opts) do
+    case Keyword.get(opts, :config) do
+      nil -> Config.load()
+      config -> Config.load(config)
+    end
   end
 
   defp init_canvas(%Canvas{width: width, height: height}) do
@@ -78,8 +100,9 @@ defmodule Nerves.Neopixel.HAL do
     "init_pixels #{channel_num} #{offset} #{x} #{y} #{count} #{dx} #{dy}\n"
   end
 
+  defp with_pixel_offset(arrangement, offset \\0)
   defp with_pixel_offset([], _offset), do: []
-  defp with_pixel_offset([strip | rest], offset \\ 0) do
+  defp with_pixel_offset([strip | rest], offset) do
     [{offset, strip} | with_pixel_offset(rest, offset + strip.count)]
   end
 
@@ -88,7 +111,10 @@ defmodule Nerves.Neopixel.HAL do
   end
 
   defp send_to_port(command, port) do
-    Logger.debug("Sending to Port: #{inspect command}")
+    Logger.debug("Sending to rpi_ws281x: -> #{inspect command}")
     Port.command(port, command)
   end
+
+  defp notify(nil, _message), do: :ok
+  defp notify(pid, message), do: send(pid, message)
 end

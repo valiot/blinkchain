@@ -24,10 +24,6 @@ defmodule Nerves.Neopixel do
     {:reply, :ok, s}
   end
 
-  def handle_info({_port, {:exit_status, exit_status}}, state) do
-    {:stop, "rpi_ws281x OS process died with status: #{exit_status}", state}
-  end
-
   defp ws2811_brg(data) when is_list(data) do
     Enum.reduce(data, <<>>, fn {r, g, b}, acc ->
       acc <> <<b::size(8), r::size(8), g::size(8), 0x00::size(8)>>

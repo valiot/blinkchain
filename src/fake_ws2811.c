@@ -6,6 +6,8 @@
 #include <string.h>
 
 #include "rpi_ws281x/ws2811.h"
+#include "utils.h"
+
 #define RPI_PWM_CHANNELS 2
 
 ws2811_return_t ws2811_init(ws2811_t *ws2811) {
@@ -19,13 +21,12 @@ ws2811_return_t ws2811_init(ws2811_t *ws2811) {
 }
 
 ws2811_return_t ws2811_render(ws2811_t *ws2811) {
-  printf("Called render()\n");
+  debug("Called render()");
   uint8_t ch;
   uint16_t offset;
-  for(ch = 0; ch < 2; ch++) {
-    printf("Channel %hhu:\n", ch);
+  for(ch = 0; ch < RPI_PWM_CHANNELS; ch++) {
     for(offset = 0; offset < ws2811->channel[ch].count; offset++) {
-      printf("  [%hu]: 0x%08x\n", offset, ws2811->channel[ch].leds[offset]);
+      debug("  [%hhu][%hu]: 0x%08x", ch, offset, ws2811->channel[ch].leds[offset]);
     }
   }
   return WS2811_SUCCESS;

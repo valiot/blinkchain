@@ -1,7 +1,5 @@
-defmodule Nerves.Neopixel.Test do
+defmodule Nerves.Neopixel.ConfigTest do
   use ExUnit.Case
-
-  doctest Nerves.Neopixel
 
   alias Nerves.Neopixel
   alias Neopixel.{
