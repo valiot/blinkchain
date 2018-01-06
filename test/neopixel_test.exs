@@ -101,7 +101,58 @@ defmodule Nerves.Neopixel.NeopixelTest do
 
       Neopixel.fill({2, 0}, 2, 3, {255, 0, 128, 64})
       assert_receive "Called fill(x: 2, y: 0, width: 2, height: 3, color: 0x40ff0080)"
+    end
 
+  end
+
+  describe "Nerves.Neopixel.copy" do
+    setup [:with_neopixel_stick_and_unicorn_phat]
+
+    test "it copies the correct pixels in multiple channels" do
+      Neopixel.set_pixel({2, 0}, {255,   0,   0,   0})
+      Neopixel.set_pixel({3, 0}, {255, 255,   0,   0})
+      Neopixel.set_pixel({2, 1}, {255, 255, 255,   0})
+      Neopixel.set_pixel({3, 1}, {255, 255, 255, 255})
+      Neopixel.set_pixel({2, 2}, {  0,   0,   0, 255})
+      Neopixel.set_pixel({3, 2}, {  0,   0, 255, 255})
+
+      Neopixel.copy({2, 0}, {4, 0}, 2, 3)
+      assert_receive "Called copy(xs: 2, ys: 0, xd: 4, yd: 0, width: 2, height: 3)"
+      assert_receive "Called set_pixel(x: 4, y: 0, color: 0x00ff0000)"
+      assert_receive "Called set_pixel(x: 5, y: 0, color: 0x00ffff00)"
+      assert_receive "Called set_pixel(x: 4, y: 1, color: 0x00ffffff)"
+      assert_receive "Called set_pixel(x: 5, y: 1, color: 0xffffffff)"
+      assert_receive "Called set_pixel(x: 4, y: 2, color: 0xff000000)"
+      assert_receive "Called set_pixel(x: 5, y: 2, color: 0xff0000ff)"
+
+      Neopixel.render()
+      assert_receive "Called render()"
+      assert_receive "  [0][4]: 0x00ff0000"
+      assert_receive "  [0][5]: 0x00ffff00"
+      assert_receive "  [1][4]: 0x00ffffff"
+      assert_receive "  [1][5]: 0xffffffff"
+      assert_receive "  [1][12]: 0xff000000"
+      assert_receive "  [1][13]: 0xff0000ff"
+    end
+
+    test "copies the pixels atomically" do
+      Neopixel.set_pixel({0, 0}, {255,   0,   0,   0})
+      Neopixel.set_pixel({1, 0}, {255, 255,   0,   0})
+      Neopixel.set_pixel({2, 0}, {255, 255, 255,   0})
+      Neopixel.set_pixel({3, 0}, {255, 255, 255, 255})
+
+      Neopixel.copy({0, 0}, {2, 0}, 4, 1)
+
+      Neopixel.render()
+      assert_receive "Called render()"
+      assert_receive "  [0][0]: 0x00ff0000"
+      assert_receive "  [0][1]: 0x00ffff00"
+      assert_receive "  [0][2]: 0x00ff0000"
+      assert_receive "  [0][3]: 0x00ffff00"
+      assert_receive "  [0][4]: 0x00ffffff"
+      assert_receive "  [0][5]: 0xffffffff"
+      assert_receive "  [0][6]: 0x00000000"
+      assert_receive "  [0][7]: 0x00000000"
     end
 
   end

@@ -21,5 +21,9 @@ defmodule Nerves.Neopixel do
     GenServer.cast(HAL, {:fill, {x, y}, width, height, {r, g, b, w}})
   end
 
+  def copy({xs, ys}, {xd, yd}, width, height) do
+    GenServer.cast(HAL, {:copy, {xs, ys}, {xd, yd}, width, height})
+  end
+
   def render, do: GenServer.cast(HAL, :render)
 end
