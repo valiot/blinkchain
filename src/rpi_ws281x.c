@@ -285,18 +285,17 @@ int main(int argc, char *argv[]) {
         errx(EXIT_FAILURE, "ws2811_render failed: %d (%s)", result, ws2811_get_return_t_str(result));
 
     } else if (strcasecmp(buffer, "print_topology") == 0) {
-      printf("Topology:\n");
+      debug("Called print_topology()");
       uint16_t x, y, offset;
+      char buffer[1024];
       for(y = 0; y < canvas.height; y++) {
-        printf("  ");
         for(x = 0; x < canvas.width; x++) {
           offset = canvas.topology[(canvas.width * y) + x];
           if (offset == USHRT_MAX)
-            printf("[  -  ]");
+            debug("  [%hu][%hu]: [  -  ]", x, y);
           else
-            printf("[%5hu]", offset);
+            debug("  [%hu][%hu]: [%5hu]", x, y, offset);
         }
-        printf("\n");
       }
 
     } else {

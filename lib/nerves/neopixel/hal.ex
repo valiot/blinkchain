@@ -44,6 +44,13 @@ defmodule Nerves.Neopixel.HAL do
     {:reply, :ok, Map.put(state, :subscriber, from)}
   end
 
+  # This is intended to be used for testing. It doesn't do anything useful
+  # in a real application.
+  def handle_cast(:print_topology, %{port: port} = state) do
+    send_to_port("print_topology\n", port)
+    {:noreply, state}
+  end
+
   def handle_cast({:set_pixel, {x, y}, {r, g, b, w}}, %{port: port} = state) do
     send_to_port("set_pixel #{x} #{y} #{r} #{g} #{b} #{w}\n", port)
     {:noreply, state}
