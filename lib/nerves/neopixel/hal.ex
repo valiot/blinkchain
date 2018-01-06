@@ -66,6 +66,11 @@ defmodule Nerves.Neopixel.HAL do
     {:noreply, state}
   end
 
+  def handle_cast({:copy_blit, {xs, ys}, {xd, yd}, width, height}, %{port: port} = state) do
+    send_to_port("copy_blit #{xs} #{ys} #{xd} #{yd} #{width} #{height}\n", port)
+    {:noreply, state}
+  end
+
   def handle_cast(:render, %{port: port} = state) do
     send_to_port("render\n", port)
     {:noreply, state}
