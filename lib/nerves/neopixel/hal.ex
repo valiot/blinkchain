@@ -51,6 +51,11 @@ defmodule Nerves.Neopixel.HAL do
     {:noreply, state}
   end
 
+  def handle_cast({:fill, {x, y}, width, height, {r, g, b, w}}, %{port: port} = state) do
+    send_to_port("fill #{x} #{y} #{width} #{height} #{r} #{g} #{b} #{w}\n", port)
+    {:noreply, state}
+  end
+
   def handle_cast({:set_pixel, {x, y}, {r, g, b, w}}, %{port: port} = state) do
     send_to_port("set_pixel #{x} #{y} #{r} #{g} #{b} #{w}\n", port)
     {:noreply, state}
