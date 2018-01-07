@@ -29,5 +29,9 @@ defmodule Nerves.Neopixel do
     GenServer.cast(HAL, {:copy_blit, {xs, ys}, {xd, yd}, width, height})
   end
 
+  def blit({x, y}, width, height, data) do
+    GenServer.cast(HAL, {:blit, {x, y}, width, height, data})
+  end
+
   def render, do: GenServer.cast(HAL, :render)
 end

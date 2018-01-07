@@ -128,16 +128,10 @@ void blit(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t
   uint16_t row, col;
   ws2811_led_t color;
   for(row = 0; row < height; row++) {
-    for(col = 0; col < width; col++) {
+    for(col = 0; col < width; col++, data += 4) {
       // ws2811_led_t is uint32_t: 0xWWRRGGBB
       // so data should look like [0xWW, 0xRR, 0xGG, 0xBB]
-      color = *data++;
-      color <<= 8;
-      color |= *data++;
-      color <<= 8;
-      color |= *data++;
-      color <<= 8;
-      color |= *data++;
+      color = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
       // Ignore totally black pixels in the source image to allow simple sprite masking.
       if (color != 0x00000000)
         set_pixel(x + col, y + row, color, channels, canvas);

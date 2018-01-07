@@ -71,6 +71,12 @@ defmodule Nerves.Neopixel.HAL do
     {:noreply, state}
   end
 
+  def handle_cast({:blit, {x, y}, width, height, data}, %{port: port} = state) do
+    base64_data = Base.encode64(data)
+    send_to_port("blit #{x} #{y} #{width} #{height} #{String.length(base64_data)} #{base64_data}\n", port)
+    {:noreply, state}
+  end
+
   def handle_cast(:render, %{port: port} = state) do
     send_to_port("render\n", port)
     {:noreply, state}

@@ -169,8 +169,32 @@ defmodule Nerves.Neopixel.NeopixelTest do
       Neopixel.copy_blit({0, 0}, {3, 0}, 3, 2)
       assert_receive "Called copy_blit(xs: 0, ys: 0, xd: 3, yd: 0, width: 3, height: 2)"
 
-      Process.sleep(100)
-      flush()
+      Neopixel.render()
+      assert_receive "Called render()"
+      assert_receive "  [0][3]: 0x00ff0000" # <- Ignored
+      assert_receive "  [0][4]: 0x000000ff"
+      assert_receive "  [0][5]: 0x00ff0000" # <- Ignored
+      assert_receive "  [1][3]: 0x000000ff"
+      assert_receive "  [1][4]: 0x00ff0000" # <- Ignored
+      assert_receive "  [1][5]: 0x000000ff"
+    end
+
+  end
+
+  describe "Nerves.Neopixel.blit" do
+    setup [:with_neopixel_stick_and_unicorn_phat]
+
+    test "it doesn't change pixels that are 0x00000000" do
+      data =
+        <<
+          0, 0, 0,   0,   0, 0, 0, 255,   0, 0, 0,   0,
+          0, 0, 0, 255,   0, 0, 0,   0,   0, 0, 0, 255
+        >>
+      Neopixel.fill({3, 0}, 3, 2, {255,   0,   0,   0})
+
+      Neopixel.blit({3, 0}, 3, 2, data)
+      assert_receive "Called blit(x: 3, y: 0, width: 3, height: 2, data: <binary>)"
+
       Neopixel.render()
       assert_receive "Called render()"
       assert_receive "  [0][3]: 0x00ff0000" # <- Ignored
