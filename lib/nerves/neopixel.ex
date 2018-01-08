@@ -7,6 +7,14 @@ defmodule Nerves.Neopixel do
   # `Nerves.Neopixel`
   """
 
+  def set_brightness(channel, brightness) do
+    GenServer.cast(HAL, {:set_brightness, channel, brightness})
+  end
+
+  def set_gamma(channel, gamma) do
+    GenServer.cast(HAL, {:set_gamma, channel, gamma})
+  end
+
   def set_pixel({x, y}, {r, g, b}) do
     GenServer.cast(HAL, {:set_pixel, {x, y}, {r, g, b, 0}})
   end

@@ -1,7 +1,8 @@
 #include <limits.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdbool.h>
-#include <strings.h>
+#include <string.h>
 #include <errno.h>
 #include <err.h>
 
@@ -52,6 +53,49 @@ void init_pixels(uint8_t channel, uint16_t offset, uint16_t x, uint16_t y, uint1
     x += dx;
     y += dy;
   }
+}
+
+int parse_strip_type(char *strip_type) {
+  if (!strncasecmp("rgb", strip_type, 4))
+    return WS2811_STRIP_RGB;
+  else if (!strncasecmp("rbg", strip_type, 4))
+    return WS2811_STRIP_RBG;
+  else if (!strncasecmp("grb", strip_type, 4))
+    return WS2811_STRIP_GRB;
+  else if (!strncasecmp("gbr", strip_type, 4))
+    return WS2811_STRIP_GBR;
+  else if (!strncasecmp("brg", strip_type, 4))
+    return WS2811_STRIP_BRG;
+  else if (!strncasecmp("bgr", strip_type, 4))
+    return WS2811_STRIP_BGR;
+  else if (!strncasecmp("rgbw", strip_type, 4))
+    return SK6812_STRIP_RGBW;
+  else if (!strncasecmp("rbgw", strip_type, 4))
+    return SK6812_STRIP_RBGW;
+  else if (!strncasecmp("grbw", strip_type, 4))
+    return SK6812_STRIP_GRBW;
+  else if (!strncasecmp("gbrw", strip_type, 4))
+    return SK6812_STRIP_GBRW;
+  else if (!strncasecmp("brgw", strip_type, 4))
+    return SK6812_STRIP_BRGW;
+  else if (!strncasecmp("bgrw", strip_type, 4))
+    return SK6812_STRIP_BGRW;
+  else
+    errx(EXIT_FAILURE, "Invalid strip type %s\n", strip_type);
+}
+
+void set_brightness(uint8_t channel, uint8_t brightness, ws2811_channel_t *channels) {
+  debug("Called set_brightness(channel: %hhu, brightness: %hhu)", channel, brightness);
+  if (channel > 1)
+    errx(EXIT_FAILURE, "Channel must be 0 or 1.");
+  channels[channel].brightness = brightness;
+}
+
+void set_gamma(uint8_t channel, uint8_t *gamma, ws2811_channel_t *channels) {
+  debug("Called set_gamma(channel: %hhu, gamma: <binary>)", channel);
+  if (channel > 1)
+    errx(EXIT_FAILURE, "Channel must be 0 or 1.");
+  channels[channel].gamma = gamma;
 }
 
 void set_pixel(uint16_t x, uint16_t y, ws2811_led_t color, ws2811_channel_t *channels, const canvas_t *canvas) {
@@ -164,13 +208,15 @@ int main(int argc, char *argv[]) {
         .gpionum = gpio_pin1,
         .count = led_count1,
         .invert = 0,
-        .brightness = 0,
+        .brightness = 255,
+        .strip_type = WS2811_STRIP_GBR,
       },
       [1] = {
         .gpionum = gpio_pin2,
         .count = led_count2,
         .invert = 0,
-        .brightness = 0,
+        .brightness = 255,
+        .strip_type = WS2811_STRIP_GBR,
       },
     },
   };
@@ -212,6 +258,53 @@ int main(int argc, char *argv[]) {
       if (scanf("%hhu %hu %hu %hu %hu %hhi %hhi%c", &channel, &offset, &x, &y, &count, &dx, &dy, &nl) != 8 || nl != '\n')
         errx(EXIT_FAILURE, "Argument error in init_pixels command");
       init_pixels(channel, offset, x, y, count, dx, dy, &canvas);
+
+    } else if (strcasecmp(buffer, "set_type") == 0) {
+      uint8_t channel;
+      char strip_type[4], nl;
+      if (scanf("%hhu %4s%c", &channel, strip_type, &nl) != 3 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in set_type command");
+      debug("Called set_type(channel: %hhu, strip_type: %s)", channel, strip_type);
+      if(channel > 1)
+        errx(EXIT_FAILURE, "Channel must be 0 or 1 in set_type command");
+      ledstring.channel[channel].strip_type = parse_strip_type(strip_type);
+
+    } else if (strcasecmp(buffer, "set_invert") == 0) {
+      uint8_t channel, invert;
+      char nl;
+      if (scanf("%hhu %hhu%c", &channel, &invert, &nl) != 3 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in set_invert command");
+      debug("Called set_invert(channel: %hhu, invert: %hhu)", channel, invert);
+      if(channel > 1)
+        errx(EXIT_FAILURE, "Channel must be 0 or 1 in set_invert command");
+      if(invert > 1)
+        errx(EXIT_FAILURE, "Invert must be 0 or 1 in set_invert command");
+      ledstring.channel[channel].invert = invert;
+
+    } else if (strcasecmp(buffer, "set_brightness") == 0) {
+      uint8_t channel, brightness;
+      char nl;
+      if (scanf("%hhu %hhu%c", &channel, &brightness, &nl) != 3 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in set_brightness command");
+      if(channel > 1)
+        errx(EXIT_FAILURE, "Channel must be 0 or 1 in set_brightness command");
+      set_brightness(channel, brightness, ledstring.channel);
+
+    } else if (strcasecmp(buffer, "set_gamma") == 0) {
+      uint8_t channel;
+      uint32_t base64_size = 256 * 4 * 4 / 3; // Each color channel has 256 bytes, scaled by 4/3 for Base64
+      char *base64_buffer = malloc(base64_size + 1);
+      char format[16], nl;
+      sprintf(format, "%%hhu %%%us%%c", base64_size);
+      if (scanf(format, &channel, base64_buffer, &nl) != 3 || nl != '\n')
+        errx(EXIT_FAILURE, "Argument error in set_gamma command");
+      int decoded_size;
+      uint8_t *data = unbase64(base64_buffer, strlen(base64_buffer), &decoded_size);
+      if (decoded_size != 4 * 256)
+        errx(EXIT_FAILURE, "Size of gamma table must be 4 * 256 bytes in set_gamma command");
+      free(base64_buffer);
+      set_gamma(channel, data, ledstring.channel);
+      free(data);
 
     } else if (strcasecmp(buffer, "set_pixel") == 0) {
       uint16_t x, y;
@@ -275,7 +368,7 @@ int main(int argc, char *argv[]) {
 
     } else if (strcasecmp(buffer, "render") == 0) {
       ws2811_return_t result = ws2811_render(&ledstring);
-      if (rc != WS2811_SUCCESS)
+      if (result != WS2811_SUCCESS)
         errx(EXIT_FAILURE, "ws2811_render failed: %d (%s)", result, ws2811_get_return_t_str(result));
 
     } else if (strcasecmp(buffer, "print_topology") == 0) {

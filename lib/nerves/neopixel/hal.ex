@@ -51,6 +51,16 @@ defmodule Nerves.Neopixel.HAL do
     {:noreply, state}
   end
 
+  def handle_cast({:set_brightness, channel, brightness}, %{port: port} = state) do
+    send_to_port("set_brightness #{channel} #{brightness}\n", port)
+    {:noreply, state}
+  end
+
+  def handle_cast({:set_gamma, channel, gamma}, %{port: port} = state) do
+    send_to_port("set_gamma #{channel} #{Base.encode64(gamma)}\n", port)
+    {:noreply, state}
+  end
+
   def handle_cast({:set_pixel, {x, y}, {r, g, b, w}}, %{port: port} = state) do
     send_to_port("set_pixel #{x} #{y} #{r} #{g} #{b} #{w}\n", port)
     {:noreply, state}
@@ -85,13 +95,11 @@ defmodule Nerves.Neopixel.HAL do
   def handle_info(:init_canvas, %{config: config, port: port} = state) do
     Logger.debug("Initializing canvas")
     config.canvas
-    |> init_canvas()
-    |> send_to_port(port)
+    |> init_canvas(port)
 
     config.channels
     |> Enum.with_index()
-    |> Enum.flat_map(fn {channel, channel_number} -> init_channel(channel_number, channel) end)
-    |> Enum.each(& send_to_port(&1, port))
+    |> Enum.each(fn {channel, channel_number} -> init_channel(channel_number, channel, port) end)
 
     {:noreply, state}
   end
@@ -118,24 +126,47 @@ defmodule Nerves.Neopixel.HAL do
     end
   end
 
-  defp init_canvas(%Canvas{width: width, height: height}) do
+  defp init_canvas(%Canvas{width: width, height: height}, port) do
     "init_canvas #{width} #{height}\n"
+    |> send_to_port(port)
   end
 
-  defp init_channel(channel_num, %Channel{arrangement: arrangement}) do
-    arrangement
+  defp init_channel(channel_num, %Channel{} = channel, port) do
+    "set_type #{channel_num} #{channel.type}\n"
+    |> send_to_port(port)
+
+    invert = if channel.invert, do: 1, else: 0
+    "set_invert #{channel_num} #{invert}\n"
+    |> send_to_port(port)
+
+    "set_brightness #{channel_num} #{channel.brightness}\n"
+    |> send_to_port(port)
+
+    if channel.gamma do
+      gamma =
+        channel.gamma
+        |> Enum.reduce(<<>>, fn val, acc -> <<acc::binary, val::size(8)>> end)
+        |> Base.encode64()
+
+      "set_gamma #{channel_num} #{gamma}\n"
+      |> send_to_port(port)
+    end
+
+    channel.arrangement
     |> with_pixel_offset()
-    |> Enum.map(fn {offset, strip} -> init_pixels(channel_num, offset, strip) end)
+    |> Enum.map(fn {offset, strip} -> init_pixels(channel_num, offset, strip, port) end)
   end
 
-  defp init_pixels(channel_num, offset, %Strip{origin: {x, y}, count: count, direction: direction}) do
+  defp init_pixels(channel_num, offset, %Strip{origin: {x, y}, count: count, direction: direction}, port) do
     {dx, dy} = case direction do
       :right -> {1, 0}
       :left -> {-1, 0}
       :down -> {0, 1}
       :up -> {0, -1}
     end
+
     "init_pixels #{channel_num} #{offset} #{x} #{y} #{count} #{dx} #{dy}\n"
+    |> send_to_port(port)
   end
 
   defp with_pixel_offset(arrangement, offset \\0)
@@ -149,7 +180,7 @@ defmodule Nerves.Neopixel.HAL do
   end
 
   defp send_to_port(command, port) do
-    Logger.debug("Sending to rpi_ws281x: -> #{inspect command}")
+    Logger.debug(fn -> "Sending to rpi_ws281x: -> #{inspect command}" end)
     Port.command(port, command)
   end
 
