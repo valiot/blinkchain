@@ -16,12 +16,9 @@ defmodule Nerves.Neopixel.HAL do
   end
 
   def init(config) do
-    pins = Enum.map(config.channels, fn ch -> ch.pin end)
-    counts = Enum.map(config.channels, & Channel.total_count/1)
     args =
-      Enum.zip(pins, counts)
-      |> Enum.flat_map(fn {pin, count} -> [pin, count] end)
-      |> Enum.map(& to_string/1)
+      config.channels
+      |> Enum.flat_map(fn ch -> ["#{ch.pin}", "#{Channel.total_count(ch)}", "#{ch.type}"] end)
 
     Logger.debug("Opening rpi_ws281x Port")
     port = Port.open({:spawn_executable, rpi_ws281x_path()}, [
@@ -132,9 +129,6 @@ defmodule Nerves.Neopixel.HAL do
   end
 
   defp init_channel(channel_num, %Channel{} = channel, port) do
-    "set_type #{channel_num} #{channel.type}\n"
-    |> send_to_port(port)
-
     invert = if channel.invert, do: 1, else: 0
     "set_invert #{channel_num} #{invert}\n"
     |> send_to_port(port)

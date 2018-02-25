@@ -184,17 +184,20 @@ void blit(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 5 && argc != 3)
-    errx(EXIT_FAILURE, "Usage: %s <Channel 1 Pin> <Channel 1 Count> [<Channel 2 Pin> <Channel 2 Count>]", argv[0]);
+  if (argc != 7 && argc != 4)
+    errx(EXIT_FAILURE, "Usage: %s <Channel 1 Pin> <Channel 1 Count> <Channel 1 Type> [<Channel 2 Pin> <Channel 2 Count> <Channel 2 Type>]", argv[0]);
 
   uint8_t gpio_pin1 = atoi(argv[1]);
   uint32_t led_count1 = strtol(argv[2], NULL, 10);
+  int strip_type1 = parse_strip_type(argv[3]);
 
   uint8_t gpio_pin2 = 0;
   uint32_t led_count2 = 0;
-  if (argc == 5) {
-    gpio_pin2 = atoi(argv[3]);
-    led_count2 = strtol(argv[4], NULL, 10);
+  int strip_type2 = WS2811_STRIP_GBR;
+  if (argc == 7) {
+    gpio_pin2 = atoi(argv[4]);
+    led_count2 = strtol(argv[5], NULL, 10);
+    strip_type2 = parse_strip_type(argv[6]);
   }
 
   /*
@@ -209,14 +212,14 @@ int main(int argc, char *argv[]) {
         .count = led_count1,
         .invert = 0,
         .brightness = 255,
-        .strip_type = WS2811_STRIP_GBR,
+        .strip_type = strip_type1,
       },
       [1] = {
         .gpionum = gpio_pin2,
         .count = led_count2,
         .invert = 0,
         .brightness = 255,
-        .strip_type = WS2811_STRIP_GBR,
+        .strip_type = strip_type2,
       },
     },
   };
@@ -258,16 +261,6 @@ int main(int argc, char *argv[]) {
       if (scanf("%hhu %hu %hu %hu %hu %hhi %hhi%c", &channel, &offset, &x, &y, &count, &dx, &dy, &nl) != 8 || nl != '\n')
         errx(EXIT_FAILURE, "Argument error in init_pixels command");
       init_pixels(channel, offset, x, y, count, dx, dy, &canvas);
-
-    } else if (strcasecmp(buffer, "set_type") == 0) {
-      uint8_t channel;
-      char strip_type[4], nl;
-      if (scanf("%hhu %4s%c", &channel, strip_type, &nl) != 3 || nl != '\n')
-        errx(EXIT_FAILURE, "Argument error in set_type command");
-      debug("Called set_type(channel: %hhu, strip_type: %s)", channel, strip_type);
-      if(channel > 1)
-        errx(EXIT_FAILURE, "Channel must be 0 or 1 in set_type command");
-      ledstring.channel[channel].strip_type = parse_strip_type(strip_type);
 
     } else if (strcasecmp(buffer, "set_invert") == 0) {
       uint8_t channel, invert;
