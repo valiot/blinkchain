@@ -6,3 +6,5 @@ erl_crash.dump
 _images
 /priv
 *.o
+.DS_Store
+.tool-versions
