@@ -10,7 +10,7 @@ defmodule Nerves.Neopixel.Config do
     :channels
   ]
 
-  def load(), do: load(Application.get_all_env(:nerves_neopixel))
+  def load(nil), do: load(Application.get_all_env(:nerves_neopixel))
   def load(config) do
     canvas =
       config
@@ -20,8 +20,11 @@ defmodule Nerves.Neopixel.Config do
     channels =
       config
       |> Keyword.get(:channels)
-      |> Enum.map(fn name -> Keyword.get(config, name) end)
-      |> Enum.map(& Channel.load_config/1)
+      |> case do
+        nil -> raise "You must configure a list of :channels for :nerves_neopixel"
+        channels -> channels
+      end
+      |> Enum.map(fn name -> load_channel_config(config, name) end)
 
     %Config{
       canvas: canvas,
@@ -29,12 +32,20 @@ defmodule Nerves.Neopixel.Config do
     }
   end
 
-  defp validate_channels(channels) when is_list(channels) do
+  defp load_channel_config(config, name) do
+    config
+    |> Keyword.get(name)
+    |> case do
+      nil -> raise "Missing configuration for channel #{name}"
+      channel_config -> Channel.load_config(channel_config)
+    end
+  end
+
+  defp validate_channels(channels) do
     pwm_channels = Enum.map(channels, & Channel.pwm_channel/1)
     if (Enum.dedup(pwm_channels) != pwm_channels) do
       raise "Each channel must have a :pin from a different hardware PWM channel"
     end
     channels
   end
-  defp validate_channels(_), do: raise "You must configure a list of :channels for :nerves_neopixel"
 end
