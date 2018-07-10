@@ -41,6 +41,7 @@ defmodule Nerves.Neopixel do
       [{:args, [ch1_pin, ch1_count, ch1_type, ch2_pin, ch2_count, ch2_type]},
         {:packet, 2},
         :use_stdio,
+        :exit_status,
         :binary])
     {:ok, %{
       port: port
@@ -56,10 +57,17 @@ defmodule Nerves.Neopixel do
     {:reply, :ok, s}
   end
 
+  def handle_info {_port, {:exit_status, exit_status}}, state do
+    {:stop, "rpi_ws281x OS process died with status: #{exit_status}", state}
+  end
+
   defp ws2811_bin(data) when is_list(data) do
     Enum.reduce(data, <<>>, fn({w, r, g, b}, acc) ->
       acc <> <<w :: size(8), r :: size(8), g :: size(8), b :: size(8)>>
     end)
   end
 
+  defp rpi_ws281x_path do
+    Path.join(:code.priv_dir(:nerves_neopixel), "rpi_ws281x")
+  end
 end

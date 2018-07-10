@@ -19,11 +19,22 @@ defmodule Nerves.Neopixel.Mixfile do
   end
 
   defp deps do
-   [{:elixir_make, ">= 0.0.0", runtime: false}]
+    [{:elixir_make, "~> 0.4", runtime: false}]
   end
 
   defp package do
-   [files: ["lib", "src", "config", "mix.exs", "README*", "LICENSE*", "Makefile"],
+   [files: [
+     "lib",
+     "src/*.c",
+     "src/*.h",
+     "src/rpi_ws281x/*.c",
+     "src/rpi_ws281x/*.h",
+     "config",
+     "mix.exs",
+     "README*",
+     "LICENSE*",
+     "Makefile"
+    ],
     maintainers: ["Greg Mefford"],
     licenses: ["MIT", "BSD 2-Clause"],
     links: %{"GitHub" => "https://github.com/GregMefford/nerves_neopixel"}]
