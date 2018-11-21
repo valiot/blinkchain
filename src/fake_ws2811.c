@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "rpi_ws281x/ws2811.h"
 #include "port_interface.h"
