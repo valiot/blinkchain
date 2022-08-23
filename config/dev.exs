@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 log_level = System.get_env("LOG_LEVEL")
 
